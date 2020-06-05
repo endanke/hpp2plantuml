@@ -50,6 +50,7 @@ shared_options = {
     'flag_color': False,
     'exclude_members': False,
     'group_by_folder': False,
+    'ignored_groups': []
 }
 
 # %% Base classes
@@ -75,6 +76,7 @@ class Container(object):
         self._name = name
         self._member_list = []
         self._namespace = None
+        self._group = None
 
     def get_name(self):
         """Name property accessor
@@ -1014,9 +1016,12 @@ class Diagram(object):
             It set to ``string``, ``header_file`` is considered to be a string,
             otherwise, it is assumed to be a filename
         """
+        global shared_options
         # Get enclosing folder to determine group
         path = os.path.dirname(header_file)
         group = os.path.basename(path)
+        if group in shared_options['ignored_groups']:
+            return
         # Parse header file
         parsed_header = CppHeaderParser.CppHeader(header_file,
                                                   argType=arg_type)
@@ -1051,11 +1056,13 @@ class Diagram(object):
         the list of available classes, a `ClassInheritanceRelationship` object
         is added to the list.
         """
+        global shared_options
         self._inheritance_list = []
         # Build list of classes in diagram
         class_list_obj = self._make_class_list()
         class_list = [c['name'] for c in class_list_obj]
-        flag_use_namespace = any([c['obj']._namespace for c in class_list_obj])
+        flag_use_namespace = not shared_options['group_by_folder'] and \
+        any([c['obj']._namespace for c in class_list_obj])
 
         # Create relationships
 
@@ -1084,12 +1091,14 @@ class Diagram(object):
         In a second phase, `ClassAggregationRelationship` objects are created
         for each relationships, using the calculated count.
         """
+        global shared_options
         self._aggregation_list = []
         # Build list of classes in diagram
         # Build list of classes in diagram
         class_list_obj = self._make_class_list()
         class_list = [c['name'] for c in class_list_obj]
-        flag_use_namespace = any([c['obj']._namespace for c in class_list_obj])
+        flag_use_namespace = not shared_options['group_by_folder'] and \
+        any([c['obj']._namespace for c in class_list_obj])
 
         # Build member type list
         variable_type_list = {}
@@ -1133,12 +1142,13 @@ class Diagram(object):
         over objects, list their methods adds a dependency relationship when a
         method takes an object as input.
         """
-
+        global shared_options
         self._dependency_list = []
         # Build list of classes in diagram
         class_list_obj = self._make_class_list()
         class_list = [c['name'] for c in class_list_obj]
-        flag_use_namespace = any([c['obj']._namespace for c in class_list_obj])
+        flag_use_namespace = not shared_options['group_by_folder'] and \
+        any([c['obj']._namespace for c in class_list_obj])
 
         # Create relationships
 
@@ -1380,6 +1390,10 @@ def main():
                         'disables namespace based groupping, since ' +
                         'PlantUML does not allow nesting namespaces ' +
                         'in packages.')
+    parser.add_argument('-x', '--ignored-groups', dest='ignored_groups',
+                        action='append', metavar='GROUP-NAME', required=False,
+                        help='list of group names to exclude form the' +
+                        ' output)')
     parser.add_argument('-t', '--template-file', dest='template_file',
                         required=False, default=None, metavar='JINJA-FILE',
                         help='path to jinja2 template file')
@@ -1389,6 +1403,7 @@ def main():
     shared_options['flag_color'] = args.flag_color
     shared_options['exclude_members'] = args.flag_exclude_members
     shared_options['group_by_folder'] = args.flag_group_by_folder
+    shared_options['ignored_groups'] = args.ignored_groups
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file,
                            template_file=args.template_file,
