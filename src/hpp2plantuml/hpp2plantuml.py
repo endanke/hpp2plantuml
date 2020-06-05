@@ -50,7 +50,9 @@ shared_options = {
     'flag_color': False,
     'exclude_members': False,
     'group_by_folder': False,
-    'ignored_groups': []
+    'ignored_groups': [],
+    'hide_internal_links': False,
+    'hide_duplicate_links': False
 }
 
 # %% Base classes
@@ -601,6 +603,7 @@ class ClassRelationship(object):
         self._parent_namespace = c_parent._namespace or None
         self._child_namespace = c_child._namespace or None
         self._flag_use_namespace = flag_use_namespace
+        self._flag_same_group = c_parent._group == c_child._group
 
     def comparison_keys(self):
         """Order comparison key between `ClassRelationship` objects
@@ -656,6 +659,11 @@ class ClassRelationship(object):
         """
         global shared_options
         link_str = ''
+
+        if shared_options['group_by_folder'] and \
+            shared_options['hide_internal_links'] and \
+            self._flag_same_group:
+            return link_str
 
         # Wrap the link in namespace block (if both parent and child are in the
         # same namespace)
@@ -1180,6 +1188,10 @@ class Diagram(object):
                                     ClassDependencyRelationship(
                                         depend_obj, obj,
                                         flag_use_namespace=flag_use_namespace))
+        if shared_options['hide_duplicate_links']:
+            dependencies = self._dependency_list
+            unique = {d.comparison_keys(): d for d in dependencies}.values()
+            self._dependency_list = list(unique)
 
     def _augment_comp(self, c_dict, c_parent, c_child, rel_type='aggregation'):
         """Increment the aggregation reference count
@@ -1390,6 +1402,12 @@ def main():
                         'disables namespace based groupping, since ' +
                         'PlantUML does not allow nesting namespaces ' +
                         'in packages.')
+    parser.add_argument('-hi', '--hide-internal', dest='flag_hide_interal',
+                        required=False, default=False, action='store_true',
+                        help='Hide links inside a group.')
+    parser.add_argument('-hd', '--hide-duplicate', dest='flag_hide_duplicate',
+                        required=False, default=False, action='store_true',
+                        help='Hide duplicated links.')
     parser.add_argument('-x', '--ignored-groups', dest='ignored_groups',
                         action='append', metavar='GROUP-NAME', required=False,
                         help='list of group names to exclude form the' +
@@ -1404,6 +1422,8 @@ def main():
     shared_options['exclude_members'] = args.flag_exclude_members
     shared_options['group_by_folder'] = args.flag_group_by_folder
     shared_options['ignored_groups'] = args.ignored_groups
+    shared_options['hide_internal_links'] = args.flag_hide_interal
+    shared_options['hide_duplicate_links'] = args.flag_hide_duplicate
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file,
                            template_file=args.template_file,
