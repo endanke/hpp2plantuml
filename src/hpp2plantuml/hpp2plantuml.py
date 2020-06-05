@@ -47,7 +47,8 @@ CONTAINER_TYPE_MAP = [
 
 # Additional shared options for the whole generation process
 shared_options = {
-    'flag_color': False
+    'flag_color': False,
+    'exclude_members': False
 }
 
 # %% Base classes
@@ -122,10 +123,13 @@ class Container(object):
         str
             String representation of object following the PlantUML syntax
         """
-        container_str = self._render_container_def() + ' {\n'
-        for member in self._member_list:
-            container_str += '\t' + member.render() + '\n'
-        container_str += '}\n'
+        global shared_options
+        container_str = self._render_container_def()
+        if not shared_options['exclude_members']:
+            container_str += ' {\n'
+            for member in self._member_list:
+                container_str += '\t' + member.render() + '\n'
+            container_str += '}\n'
         if self._namespace is not None:
             return wrap_namespace(container_str, self._namespace)
         return container_str
@@ -1353,6 +1357,9 @@ def main():
                         required=False, default=False, action='store_true',
                         help='Extract dependency relationships from method ' +
                         'arguments')
+    parser.add_argument('-e', '--exclude-members', dest='flag_exclude_members',
+                        required=False, default=False, action='store_true',
+                        help='Exclude class members from the output')
     parser.add_argument('-c', '--colored-lines', dest='flag_color',
                         required=False, default=False, action='store_true',
                         help='Color relationship lines randomly')
@@ -1363,6 +1370,7 @@ def main():
                         version='%(prog)s ' + '0.6')
     args = parser.parse_args()
     shared_options['flag_color'] = args.flag_color
+    shared_options['exclude_members'] = args.flag_exclude_members
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file,
                            template_file=args.template_file,
