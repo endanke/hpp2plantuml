@@ -6,6 +6,7 @@ import glob
 import argparse
 import CppHeaderParser
 import jinja2
+import random
 
 # %% Constants
 
@@ -18,12 +19,21 @@ MEMBER_PROP_MAP = {
 }
 
 # Links
-LINK_TYPE_MAP = {
-    'inherit': '<|--',
-    'aggregation': 'o--',
-    'composition': '*--',
-    'dependency': '<..'
+LINK_TYPE_PREFIX_MAP = {
+    'inherit': '<|-',
+    'aggregation': 'o-',
+    'composition': '*-',
+    'dependency': '<.'
 }
+LINK_TYPE_SUFFIX_MAP = {
+    'inherit': '-',
+    'aggregation': '-',
+    'composition': '-',
+    'dependency': '.'
+}
+
+# Predefined colors for rendering
+COLORS = ['blue','green','crimson','gold','orange']
 
 # Association between object names and objects
 # - The first element is the object type name in the CppHeader object
@@ -34,6 +44,11 @@ CONTAINER_TYPE_MAP = [
     ['structs', lambda objs: objs.items(), lambda obj: Struct(obj)],
     ['enums', lambda objs: objs, lambda obj: Enum(obj)]
 ]
+
+# Additional shared options for the whole generation process
+shared_options = {
+    'flag_color': False
+}
 
 # %% Base classes
 
@@ -665,7 +680,24 @@ class ClassRelationship(object):
         str
             The link between parent and child following the PlantUML syntax
         """
-        return LINK_TYPE_MAP[self._link_type]
+        global shared_options
+        link_str = LINK_TYPE_PREFIX_MAP[self._link_type]
+        if shared_options['flag_color']:
+            link_str += self._render_color_tag()
+        link_str += LINK_TYPE_SUFFIX_MAP[self._link_type]
+        return link_str
+
+    def _render_color_tag(self):
+        """Choose a random color
+
+        Returns a random color tag based on the global color list
+
+        Returns
+        -------
+        str
+            The rendered tag
+        """
+        return '[#' + random.choice(COLORS) + ']' 
 
 # %% Class inheritance
 
@@ -733,8 +765,13 @@ class ClassAggregationRelationship(ClassRelationship):
         :func:`ClassRelationship._render_link_type` to include a count near the
         end of the arrow.
         """
+        global shared_options
         count_str = '' if self._count == 1 else '"%d" ' % self._count
-        return count_str + LINK_TYPE_MAP[self._link_type]
+        link_str = count_str + LINK_TYPE_PREFIX_MAP[self._link_type]
+        if shared_options['flag_color']:
+            link_str += self._render_color_tag()
+        link_str += LINK_TYPE_SUFFIX_MAP[self._link_type]
+        return link_str
 
 # %% Class dependency
 
@@ -1296,6 +1333,7 @@ def CreatePlantUMLFile(file_list, output_file=None, **diagram_kwargs):
 
 
 def main():
+    global shared_options
     """Command line interface
 
     This function is a command-line interface to the
@@ -1315,12 +1353,16 @@ def main():
                         required=False, default=False, action='store_true',
                         help='Extract dependency relationships from method ' +
                         'arguments')
+    parser.add_argument('-c', '--colored-lines', dest='flag_color',
+                        required=False, default=False, action='store_true',
+                        help='Color relationship lines randomly')
     parser.add_argument('-t', '--template-file', dest='template_file',
                         required=False, default=None, metavar='JINJA-FILE',
                         help='path to jinja2 template file')
     parser.add_argument('--version', action='version',
                         version='%(prog)s ' + '0.6')
     args = parser.parse_args()
+    shared_options['flag_color'] = args.flag_color
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file,
                            template_file=args.template_file,
