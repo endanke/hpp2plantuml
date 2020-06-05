@@ -48,7 +48,8 @@ CONTAINER_TYPE_MAP = [
 # Additional shared options for the whole generation process
 shared_options = {
     'flag_color': False,
-    'exclude_members': False
+    'exclude_members': False,
+    'group_by_folder': False,
 }
 
 # %% Base classes
@@ -130,8 +131,10 @@ class Container(object):
             for member in self._member_list:
                 container_str += '\t' + member.render() + '\n'
             container_str += '}\n'
-        if self._namespace is not None:
-            return wrap_namespace(container_str, self._namespace)
+        if shared_options['group_by_folder'] and self._group is not None:
+            return wrap_group(container_str, 'package', self._group)
+        elif self._namespace is not None:
+            return wrap_group(container_str, 'namespace', self._namespace)
         return container_str
 
     def comparison_keys(self):
@@ -649,6 +652,7 @@ class ClassRelationship(object):
             The string representation of the class relationship following the
             PlantUML syntax
         """
+        global shared_options
         link_str = ''
 
         # Wrap the link in namespace block (if both parent and child are in the
@@ -669,8 +673,8 @@ class ClassRelationship(object):
         link_str += parent_str + ' ' + self._render_link_type() + \
                     ' ' + child_str + '\n'
 
-        if namespace_wrap is not None:
-            return wrap_namespace(link_str, namespace_wrap)
+        if not shared_options['group_by_folder'] and namespace_wrap is not None:
+            return wrap_group(link_str, 'namespace', namespace_wrap)
         return link_str
 
     def _render_link_type(self):
@@ -1010,6 +1014,9 @@ class Diagram(object):
             It set to ``string``, ``header_file`` is considered to be a string,
             otherwise, it is assumed to be a filename
         """
+        # Get enclosing folder to determine group
+        path = os.path.dirname(header_file)
+        group = os.path.basename(path)
         # Parse header file
         parsed_header = CppHeaderParser.CppHeader(header_file,
                                                   argType=arg_type)
@@ -1017,7 +1024,9 @@ class Diagram(object):
             container_handler in CONTAINER_TYPE_MAP:
             objects = parsed_header.__getattribute__(container_type)
             for obj in container_iterator(objects):
-                self._objects.append(container_handler(obj))
+                container = container_handler(obj)
+                container._group = group
+                self._objects.append(container)
 
     def _make_class_list(self):
         """Build list of classes
@@ -1280,22 +1289,24 @@ def expand_file_list(input_files):
         file_list += glob.glob(input_file)
     return file_list
 
-def wrap_namespace(input_str, namespace):
+def wrap_group(input_str, wrapper_type, name):
     """Wrap string in namespace
 
     Parameters
     ----------
     input_str : str
         String containing PlantUML code
-    namespace : str
-       Namespace name
+    wrapper_type : str
+        Type of the wrapper (namespace or package)
+    name : str
+       Name of the wrapper
 
     Returns
     -------
     str
-        ``input_str`` wrapped in ``namespace`` block
+        ``input_str`` wrapped in ``namespace`` or ``package`` block
     """
-    return 'namespace {} {{\n'.format(namespace) + \
+    return wrapper_type + ' {} {{\n'.format(name) + \
         '\n'.join([re.sub('^', '\t', line)
                    for line in input_str.splitlines()]) + \
         '\n}\n'
@@ -1363,6 +1374,12 @@ def main():
     parser.add_argument('-c', '--colored-lines', dest='flag_color',
                         required=False, default=False, action='store_true',
                         help='Color relationship lines randomly')
+    parser.add_argument('-g', '--group-by-folder', dest='flag_group_by_folder',
+                        required=False, default=False, action='store_true',
+                        help='Group objects by folder. This implicitly ' +
+                        'disables namespace based groupping, since ' +
+                        'PlantUML does not allow nesting namespaces ' +
+                        'in packages.')
     parser.add_argument('-t', '--template-file', dest='template_file',
                         required=False, default=None, metavar='JINJA-FILE',
                         help='path to jinja2 template file')
@@ -1371,6 +1388,7 @@ def main():
     args = parser.parse_args()
     shared_options['flag_color'] = args.flag_color
     shared_options['exclude_members'] = args.flag_exclude_members
+    shared_options['group_by_folder'] = args.flag_group_by_folder
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file,
                            template_file=args.template_file,
