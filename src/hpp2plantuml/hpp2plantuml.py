@@ -51,6 +51,7 @@ shared_options = {
     'exclude_members': False,
     'group_by_folder': False,
     'ignored_groups': [],
+    'ignored_objects': [],
     'hide_internal_links': False,
     'hide_duplicate_links': False
 }
@@ -1077,6 +1078,8 @@ class Diagram(object):
             objects = parsed_header.__getattribute__(container_type)
             for obj in container_iterator(objects):
                 container = container_handler(obj)
+                if container._name in shared_options['ignored_objects']:
+                    return
                 container._group = group
                 self._objects.append(container)
 
@@ -1471,8 +1474,14 @@ def main():
                         required=False, default=False, action='store_true',
                         help='Hide duplicated links.')
     parser.add_argument('-x', '--ignored-groups', dest='ignored_groups',
-                        action='append', metavar='GROUP-NAME', required=False,
+                        action='append', metavar='GROUP-NAME', 
+                        required=False, default=[],
                         help='list of group names to exclude form the' +
+                        ' output)')
+    parser.add_argument('-xo', '--ignored-objects', dest='ignored_objects',
+                        action='append', metavar='GROUP-NAME', 
+                        required=False, default=[],
+                        help='list of object names to exclude form the' +
                         ' output)')
     parser.add_argument('-t', '--template-file', dest='template_file',
                         required=False, default=None, metavar='JINJA-FILE',
@@ -1484,6 +1493,7 @@ def main():
     shared_options['exclude_members'] = args.flag_exclude_members
     shared_options['group_by_folder'] = args.flag_group_by_folder
     shared_options['ignored_groups'] = args.ignored_groups
+    shared_options['ignored_objects'] = args.ignored_objects
     shared_options['hide_internal_links'] = args.flag_hide_interal
     shared_options['hide_duplicate_links'] = args.flag_hide_duplicate
     if len(args.input_files) > 0:
