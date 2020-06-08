@@ -660,11 +660,6 @@ class ClassRelationship(object):
         global shared_options
         link_str = ''
 
-        if shared_options['group_by_folder'] and \
-            shared_options['hide_internal_links'] and \
-            self._flag_same_group:
-            return link_str
-
         # Wrap the link in namespace block (if both parent and child are in the
         # same namespace)
         namespace_wrap = None
@@ -815,6 +810,37 @@ class ClassDependencyRelationship(ClassRelationship):
         """
         super().__init__('dependency', c_parent, c_child, **kwargs)
 
+# %% Class alignment
+
+
+class ClassAlignmentRelationship(ClassRelationship):
+    """alignment relationship
+
+    Helper link type to align layout with invisible links in the diagram.
+    """
+    def __init__(self, c_parent, c_child, **kwargs):
+        """Constructor
+
+        Parameters
+        ----------
+        c_parent : str
+            Class corresponding to the type of the member variable in the
+            alignment relationship
+        c_child : str
+            Child (or client) class of the alignment relationship
+        kwargs : dict
+            Additional parameters passed to parent class
+        """
+        super().__init__('alignment', c_parent, c_child, **kwargs)
+
+    def _render_link_type(self):
+        """Internal link rendering
+
+        This method overrides the default link rendering defined in
+        :func:`ClassRelationship._render_link_type` to hide the result.
+        """
+        return '<-down[hidden]-'
+
 # %% Diagram class
 
 
@@ -857,6 +883,7 @@ class Diagram(object):
         self._inheritance_list = []
         self._aggregation_list = []
         self._dependency_list = []
+        self._alignment_list = []
 
     def _sort_list(input_list):
         """Sort list using `ClassRelationship` comparison
@@ -1004,10 +1031,22 @@ class Diagram(object):
         This method successively calls the :func:`build_inheritance_list` and
         :func:`build_aggregation_list` methods.
         """
+        global shared_options
+
         self.build_inheritance_list()
         self.build_aggregation_list()
         if self._flag_dep:
             self.build_dependency_list()
+        self.build_alignment_list()
+
+        if shared_options['group_by_folder'] and \
+            shared_options['hide_internal_links']:
+            self._inheritance_list = \
+                [l for l in self._inheritance_list if not l._flag_same_group]
+            self._aggregation_list = \
+                [l for l in self._aggregation_list if not l._flag_same_group]
+            self._dependency_list = \
+                [l for l in self._dependency_list if not l._flag_same_group]
 
     def parse_objects(self, header_file, arg_type='string'):
         """Parse objects
@@ -1193,6 +1232,28 @@ class Diagram(object):
             unique = {d.comparison_keys(): d for d in dependencies}.values()
             self._dependency_list = list(unique)
 
+    def build_alignment_list(self):
+        """Build list of object alignment links
+
+        This method populates the aligment list, which contains hidden links
+        between the objects used for layout alignment purposes.
+        """
+
+        # Group objects
+        groups = {}
+        for obj in self._objects:
+            if obj._group in groups:
+                groups[obj._group].append(obj)
+            else:
+                groups[obj._group] = [obj]
+
+        for group in groups.values():
+            groupSize = len(group)
+            for i in range(groupSize):
+                if i + 1 < groupSize:
+                    alignment = ClassAlignmentRelationship(group[i], group[i+1])
+                    self._alignment_list.append(alignment)
+
     def _augment_comp(self, c_dict, c_parent, c_child, rel_type='aggregation'):
         """Increment the aggregation reference count
 
@@ -1241,6 +1302,7 @@ class Diagram(object):
                                inheritance_list=self._inheritance_list,
                                aggregation_list=self._aggregation_list,
                                dependency_list=self._dependency_list,
+                               alignment_list=self._alignment_list,
                                flag_dep=self._flag_dep)
 
 # %% Cleanup object type string

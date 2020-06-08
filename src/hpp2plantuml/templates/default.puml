@@ -33,4 +33,11 @@
 {% endblock %}
 {% endif %}
 
+{% block alignment %}
+/' Alignment relationships '/
+{% for link in alignment_list %}
+{{ link.render() }}
+{% endfor %}
+{% endblock %}
+
 @enduml
