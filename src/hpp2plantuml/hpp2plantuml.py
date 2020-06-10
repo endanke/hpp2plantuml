@@ -53,7 +53,8 @@ shared_options = {
     'ignored_groups': [],
     'ignored_objects': [],
     'hide_internal_links': False,
-    'hide_duplicate_links': False
+    'hide_duplicate_links': False,
+    'hide_unrelated': False
 }
 
 # %% Base classes
@@ -1300,6 +1301,23 @@ class Diagram(object):
             String containing the full string representation of the `Diagram`
             object, including objects and object relationships
         """
+        global shared_options
+        
+        if shared_options['hide_unrelated']:
+            relations = self._aggregation_list \
+                + self._aggregation_list \
+                + self._dependency_list
+            relatedObjectNames = []
+            for link in relations:
+                relatedObjectNames.append(link._parent)
+                relatedObjectNames.append(link._child)
+            self._objects = \
+                [o for o in self._objects if o._name in relatedObjectNames]
+            self._alignment_list = \
+                [l for l in self._alignment_list \
+                if l._child in relatedObjectNames \
+                and l._parent in relatedObjectNames]
+
         template = self._env.get_template(self._template_file)
         return template.render(objects=self._objects,
                                inheritance_list=self._inheritance_list,
@@ -1473,12 +1491,16 @@ def main():
     parser.add_argument('-hd', '--hide-duplicate', dest='flag_hide_duplicate',
                         required=False, default=False, action='store_true',
                         help='Hide duplicated links.')
-    parser.add_argument('-x', '--ignored-groups', dest='ignored_groups',
+    parser.add_argument('-hu', '--hide-unrelated', dest='flag_hide_unrelated',
+                        required=False, default=False, action='store_true',
+                        help='hide objects which are not referenced' +
+                        ' by any relation links)')
+    parser.add_argument('-x', '--ignore-groups', dest='ignored_groups',
                         action='append', metavar='GROUP-NAME', 
                         required=False, default=[],
                         help='list of group names to exclude form the' +
                         ' output)')
-    parser.add_argument('-xo', '--ignored-objects', dest='ignored_objects',
+    parser.add_argument('-xo', '--ignore-objects', dest='ignored_objects',
                         action='append', metavar='GROUP-NAME', 
                         required=False, default=[],
                         help='list of object names to exclude form the' +
@@ -1496,6 +1518,7 @@ def main():
     shared_options['ignored_objects'] = args.ignored_objects
     shared_options['hide_internal_links'] = args.flag_hide_interal
     shared_options['hide_duplicate_links'] = args.flag_hide_duplicate
+    shared_options['hide_unrelated'] = args.flag_hide_unrelated
     if len(args.input_files) > 0:
         CreatePlantUMLFile(args.input_files, args.output_file,
                            template_file=args.template_file,
